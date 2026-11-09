@@ -1,0 +1,148 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import CollegeStamp from "@/components/CollegeStamp";
+import Developing from "@/components/Developing";
+import { fetchCollegeById } from "@/lib/collegeQueries";
+import { createClient } from "@/lib/supabase/client";
+import type { College } from "@/types";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [college, setCollege] = useState<College | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    // URL mein error hai?
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error")) {
+      setErrorMessage("Sign in failed. Please try again.");
+    }
+
+    const saved = localStorage.getItem("selected_college_id");
+    if (!saved) {
+      router.replace("/");
+      return;
+    }
+
+    // College database se lo. Nahi mila (e.g. purana mock ID "rishihood") → wapas select page
+    fetchCollegeById(createClient(), saved).then((found) => {
+      if (!found) {
+        localStorage.removeItem("selected_college_id");
+        router.replace("/");
+      } else {
+        setCollege(found);
+      }
+    });
+  }, [router]);
+
+  if (!college) return <Developing />;
+
+  // Stamp ka color/tilt — ID se stable number (pehle mock array ka index tha)
+  const collegeIndex = [...college.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 4;
+
+  const domains = college.emailDomains;
+
+  async function handleGoogleLogin() {
+    setIsLoading(true);
+    setErrorMessage("");
+
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        // Google OAuth use karo
+        // Koi PKCE/OTP issue nahi — seedha Google pe jao → callback pe wapas aao
+
+        options: {
+          redirectTo: `${window.location.origin}/auth/confirm`,
+          // Login ke baad /auth/callback pe redirect hoga
+          // wahan session set hoga → /onboarding pe jaayenge
+
+          queryParams: {
+            // hd = Google Workspace domain hint — sirf tab jab college ka ek hi domain ho.
+            // Multiple domains (e.g. rishihood.edu.in + nst.rishihood.edu.in) → hd mat bhejo,
+            // warna doosre domain wale students block ho jaate. Asli check onboarding mein hota hai.
+            ...(domains.length === 1 ? { hd: domains[0] } : {}),
+            prompt: "select_account",
+          },
+        },
+      });
+
+      if (error) {
+        setErrorMessage(`Error: ${error.message}`);
+        setIsLoading(false);
+      }
+      // Error nahi → Google page pe redirect ho jayega (browser navigate karega)
+
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Something went wrong. Try again.");
+      setIsLoading(false);
+    }
+  }
+
+  function handleChangeSchool() {
+    localStorage.removeItem("selected_college_id");
+    router.push("/");
+  }
+
+  return (
+    <div className="mx-auto grid max-w-5xl items-center gap-14 px-6 py-16 md:grid-cols-[1fr_1.2fr] md:py-24">
+
+      {/* Left: College Stamp */}
+      <div className="mx-auto w-60 -rotate-3">
+        <CollegeStamp college={college} index={collegeIndex} />
+      </div>
+
+      {/* Right: Login */}
+      <div>
+        <p className="label">Step 2 of 3 · Sign in</p>
+        <h1 className="font-serif text-5xl leading-tight">
+          Welcome to {college.name}.
+        </h1>
+        <p className="mt-4 text-sm text-muted">
+          Sign in with your college Google account to access the archive.
+        </p>
+
+        {errorMessage && (
+          <p className="mt-4 text-xs font-bold text-rust" role="alert">
+            {errorMessage}
+          </p>
+        )}
+
+        {/* Google Sign In Button */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={isLoading}
+          className="mt-8 flex w-full items-center justify-center gap-3 rounded-md border-2 border-ink bg-white px-6 py-4 font-bold transition hover:bg-paper-light disabled:opacity-50"
+        >
+          {/* Google Logo SVG */}
+          <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+            <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z" />
+            <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+            <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+          </svg>
+          {isLoading ? "Redirecting to Google…" : "Sign in with Google"}
+        </button>
+
+        <p className="mt-4 text-xs text-muted text-center">
+          Use your <strong>{college.emailDomains.join(" / ") || "college"}</strong> Google account
+        </p>
+
+        <button
+          type="button"
+          onClick={handleChangeSchool}
+          className="mt-6 text-sm text-muted underline underline-offset-4 hover:text-ink"
+        >
+          Not your school? Change it
+        </button>
+      </div>
+    </div>
+  );
+}
