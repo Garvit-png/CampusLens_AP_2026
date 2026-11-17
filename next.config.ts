@@ -3,6 +3,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    agentUpgrade: "security",
+  },
   turbopack: {
     rules: {
       // Ye rule Tailwind CSS ko Turbopack (Next.js ka fast bundler) ke saath chalata hai.
