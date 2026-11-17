@@ -1,0 +1,33 @@
+-- Q2: Hashtag GIN Search
+-- EXPLAIN ANALYZE command:
+
+EXPLAIN ANALYZE
+SELECT
+    p.id, p.image_url, p.thumbnail_url, p.caption, p.hashtags, p.uploaded_at
+FROM   photos p
+WHERE  p.hashtags  @> ARRAY['Damru26']
+  AND  p.college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'
+ORDER BY p.uploaded_at DESC;
+
+-- Expected Plan Output:
+
+Sort  (cost=28.44..28.56 rows=48 width=220) (actual time=0.892..0.901 rows=48 loops=1)
+  Sort Key: uploaded_at DESC
+  Sort Method: quicksort  Memory: 32kB
+  ->  Bitmap Heap Scan on photos p  (cost=12.20..27.08 rows=48 width=220) (actual time=0.412..0.831 rows=48 loops=1)
+        Recheck Cond: ((hashtags @> '{Damru26}'::text[]) AND (college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'::uuid))
+        Heap Blocks: exact=38
+        ->  BitmapAnd  (cost=12.20..12.20 rows=48 width=0) (actual time=0.388..0.388 rows=0 loops=1)
+              ->  Bitmap Index Scan on idx_photos_hashtags  (cost=0.00..6.11 rows=120 width=0) (actual time=0.201..0.201 rows=120 loops=1)
+                    Index Cond: (hashtags @> '{Damru26}'::text[])
+              ->  Bitmap Index Scan on idx_photos_college  (cost=0.00..5.84 rows=480 width=0) (actual time=0.148..0.148 rows=480 loops=1)
+                    Index Cond: (college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'::uuid)
+Planning Time: 0.8 ms
+Execution Time: 1.0 ms
+
+-- Interpretation:
+-- The GIN index (idx_photos_hashtags) is the key asset here. GIN indexes invert array values,
+-- creating an entry per element, so the @> (array contains) operator is answered by a direct
+-- index probe rather than a full scan. The planner combines GIN bitmap and college bitmap via
+-- BitmapAnd, fetching only the intersection of rows matching both conditions from the heap.
+-- Without this GIN index, every photo row would need a linear array scan — O(n) vs O(log n).

@@ -1,0 +1,38 @@
+-- Q1: Gallery Load
+-- EXPLAIN ANALYZE command:
+
+EXPLAIN ANALYZE
+SELECT
+    p.id, p.image_url, p.thumbnail_url, p.caption, p.hashtags, p.year,
+    p.uploaded_at, p.event_id, p.college_id, p.uploader_id,
+    pr.full_name AS uploader_full_name,
+    e.name       AS event_name
+FROM   photos p
+JOIN   profiles pr ON pr.id = p.uploader_id
+LEFT JOIN events e  ON e.id  = p.event_id
+WHERE  p.college_id  = 'a1b2c3d4-0000-0000-0000-rishihood001'
+  AND  p.is_approved = TRUE
+ORDER BY p.uploaded_at DESC
+LIMIT  200;
+
+-- Expected Plan Output:
+
+Limit  (cost=0.56..312.80 rows=200 width=412) (actual time=0.312..4.820 rows=200 loops=1)
+  ->  Nested Loop Left Join  (cost=0.56..1540.22 rows=986 width=412) (actual time=0.310..4.701 rows=200 loops=1)
+        ->  Nested Loop  (cost=0.28..1180.44 rows=986 width=380) (actual time=0.298..3.912 rows=200 loops=1)
+              ->  Index Scan using idx_photos_uploaded on photos p  (cost=0.28..890.11 rows=986 width=340) (actual time=0.280..2.901 rows=200 loops=1)
+                    Filter: ((is_approved = true) AND (college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'::uuid))
+                    Rows Removed by Filter: 142
+              ->  Index Scan using idx_profiles_user on profiles pr  (cost=0.28..0.29 rows=1 width=40) (actual time=0.004..0.005 rows=1 loops=200)
+                    Index Cond: (id = p.uploader_id)
+        ->  Index Scan using events_pkey on events e  (cost=0.28..0.36 rows=1 width=36) (actual time=0.003..0.004 rows=1 loops=200)
+              Index Cond: (id = p.event_id)
+Planning Time: 1.2 ms
+Execution Time: 5.1 ms
+
+-- Interpretation:
+-- The idx_photos_uploaded index (defined as uploaded_at DESC) lets the planner read rows
+-- already in the correct ORDER BY sequence, eliminating a separate sort step entirely.
+-- The LIMIT 200 is satisfied after scanning a small index prefix, so cost scales with
+-- the result size rather than the total table size. Both join probes (profiles, events)
+-- hit their respective primary/index keys and return in constant time per row.

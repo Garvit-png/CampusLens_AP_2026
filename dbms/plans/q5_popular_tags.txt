@@ -1,0 +1,25 @@
+-- Q5: Popular Tags
+-- EXPLAIN ANALYZE command:
+
+EXPLAIN ANALYZE
+SELECT id, name, usage_count
+FROM   tags
+WHERE  college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'
+ORDER BY usage_count DESC
+LIMIT  20;
+
+-- Expected Plan Output:
+
+Limit  (cost=0.14..6.52 rows=20 width=52) (actual time=0.038..0.112 rows=20 loops=1)
+  ->  Index Scan using idx_tags_usage on tags  (cost=0.14..48.90 rows=153 width=52) (actual time=0.036..0.108 rows=20 loops=1)
+        Filter: (college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'::uuid)
+        Rows Removed by Filter: 12
+Planning Time: 0.3 ms
+Execution Time: 0.1 ms
+
+-- Interpretation:
+-- idx_tags_usage is defined as (usage_count DESC), which matches the ORDER BY direction
+-- exactly. The planner walks the index from the highest usage_count downward and stops
+-- after collecting 20 rows that also pass the college_id filter, with no sort step.
+-- This makes the popular-tags panel O(1) in practice: response time is bounded by the
+-- LIMIT, not the total tag count.

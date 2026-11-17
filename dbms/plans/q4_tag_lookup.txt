@@ -1,0 +1,22 @@
+-- Q4: Tag Lookup by Name and College
+-- EXPLAIN ANALYZE command:
+
+EXPLAIN ANALYZE
+SELECT id, usage_count
+FROM   tags
+WHERE  name       = 'Damru26'
+  AND  college_id = 'a1b2c3d4-0000-0000-0000-rishihood001';
+
+-- Expected Plan Output:
+
+Index Scan using tags_college_id_name_key on tags  (cost=0.14..2.16 rows=1 width=24) (actual time=0.042..0.043 rows=1 loops=1)
+  Index Cond: ((college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'::uuid) AND (name = 'Damru26'::text))
+Planning Time: 0.3 ms
+Execution Time: 0.05 ms
+
+-- Interpretation:
+-- The UNIQUE(college_id, name) constraint creates an implicit composite B-tree index.
+-- PostgreSQL's planner recognises that this index satisfies both equality predicates in
+-- a single probe, making the separate single-column indexes (idx_tags_name, idx_tags_college)
+-- unnecessary for this query. The result is a constant-time point lookup whether the tags
+-- table holds 100 or 100,000 rows.

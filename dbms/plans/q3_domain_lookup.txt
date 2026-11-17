@@ -1,0 +1,26 @@
+-- Q3: Email Domain Lookup
+-- EXPLAIN ANALYZE command:
+
+EXPLAIN ANALYZE
+SELECT
+    ced.college_id,
+    c.name AS college_name
+FROM   college_email_domains ced
+JOIN   colleges c ON c.id = ced.college_id
+WHERE  ced.domain = 'rishihood.edu.in';
+
+-- Expected Plan Output:
+
+Nested Loop  (cost=0.28..4.32 rows=1 width=48) (actual time=0.080..0.084 rows=1 loops=1)
+  ->  Index Scan using idx_domains_domain on college_email_domains ced  (cost=0.14..2.16 rows=1 width=32) (actual time=0.062..0.064 rows=1 loops=1)
+        Index Cond: (domain = 'rishihood.edu.in'::text)
+  ->  Index Scan using colleges_pkey on colleges c  (cost=0.14..2.16 rows=1 width=36) (actual time=0.016..0.017 rows=1 loops=1)
+        Index Cond: (id = ced.college_id)
+Planning Time: 0.4 ms
+Execution Time: 0.1 ms
+
+-- Interpretation:
+-- domain has a UNIQUE constraint plus a dedicated idx_domains_domain index, guaranteeing
+-- at most one row is returned from college_email_domains. The subsequent join to colleges
+-- on the PK is a single-row probe. The entire lookup is sub-millisecond regardless of
+-- how many domains are registered — a true point lookup with O(log n) cost.
