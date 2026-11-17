@@ -304,3 +304,67 @@ WHERE  id          = 'a1b2c3d4-0000-0000-0000-photo000001'
 UPDATE photos
 SET    is_approved = FALSE
 WHERE  id = 'a1b2c3d4-0000-0000-0000-photo000001';
+
+
+-- ============================================================
+-- Q15: Campus Engagement & Batch Year Analytics
+-- ============================================================
+-- Purpose  : Analyze student engagement across batch years for a college.
+--            Aggregates total approved photos, unique uploaders, and
+--            activity distribution. Useful for administrative dashboards.
+-- ============================================================
+SELECT
+    pr.batch_year,
+    COUNT(DISTINCT pr.id)          AS active_contributors,
+    COUNT(p.id)                    AS total_photos_uploaded,
+    ROUND(COUNT(p.id)::NUMERIC / NULLIF(COUNT(DISTINCT pr.id), 0), 2) AS avg_photos_per_contributor,
+    MIN(p.uploaded_at)             AS earliest_upload,
+    MAX(p.uploaded_at)             AS latest_upload
+FROM   profiles pr
+JOIN   photos p ON p.uploader_id = pr.id
+WHERE  pr.college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'
+  AND  p.is_approved = TRUE
+GROUP BY pr.batch_year
+ORDER BY pr.batch_year DESC;
+
+
+-- ============================================================
+-- Q16: Event Participation & Media Aggregation
+-- ============================================================
+-- Purpose  : Summarize photo contributions across campus events.
+--            Identifies high-traffic events, photo coverage, and
+--            engagement metrics per event.
+-- ============================================================
+SELECT
+    e.id                           AS event_id,
+    e.name                         AS event_name,
+    e.year                         AS event_year,
+    e.event_date,
+    COUNT(p.id)                    AS total_photos,
+    COUNT(DISTINCT p.uploader_id)  AS distinct_photographers,
+    MAX(p.uploaded_at)             AS most_recent_upload
+FROM   events e
+LEFT JOIN photos p ON p.event_id = e.id AND p.is_approved = TRUE
+WHERE  e.college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'
+GROUP BY e.id, e.name, e.year, e.event_date
+ORDER BY total_photos DESC, e.event_date DESC;
+
+
+-- ============================================================
+-- Q17: Stale & Orphaned Tags Housekeeping
+-- ============================================================
+-- Purpose  : Detect tags that have zero references in photo_tags
+--            or usage_count = 0, facilitating automated metadata
+--            pruning and database garbage collection.
+-- ============================================================
+SELECT
+    t.id,
+    t.name,
+    t.usage_count,
+    t.created_at
+FROM   tags t
+LEFT JOIN photo_tags pt ON pt.tag_id = t.id
+WHERE  t.college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'
+  AND  pt.photo_id IS NULL
+ORDER BY t.created_at ASC;
+
