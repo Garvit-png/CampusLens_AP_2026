@@ -170,7 +170,28 @@ All seven tables use a single-column UUID primary key. Because the PK is never c
 
 ---
 
-## 6. Conclusion
+## 6. Boyce-Codd Normal Form (BCNF) Analysis
+
+**Definition:** A relation $R$ is in BCNF if and only if for every non-trivial functional dependency $X \to Y$, $X$ is a superkey of $R$. BCNF is stricter than 3NF because it disallows non-trivial dependencies where the determinant is not a superkey, even if the dependent attribute is a prime attribute.
+
+| Table | Candidate Keys | Functional Dependencies ($X \to Y$) | Determinant $X$ is Superkey? | BCNF Status |
+|---|---|---|---|---|
+| `colleges` | `{id}`, `{name}` | `id` → all attributes; `name` → all attributes | Yes | ✅ Satisfies BCNF |
+| `college_email_domains` | `{id}`, `{domain}` | `id` → all; `domain` → `college_id` | Yes | ✅ Satisfies BCNF |
+| `profiles` | `{id}`, `{user_id}` | `id` → all; `user_id` → all | Yes | ✅ Satisfies BCNF |
+| `events` | `{id}`, `{college_id, name, year}` | `id` → all; `{college_id, name, year}` → all | Yes | ✅ Satisfies BCNF |
+| `tags` | `{id}`, `{college_id, name}` | `id` → all; `{college_id, name}` → all | Yes | ✅ Satisfies BCNF |
+| `photo_tags` | `{id}`, `{photo_id, tag_id}` | `id` → all; `{photo_id, tag_id}` → all | Yes | ✅ Satisfies BCNF |
+| `photos` | `{id}` | `id` → all; `uploader_id` → `college_id` | No (`uploader_id` is not superkey in `photos`) | ⚠️ Fails strict BCNF due to §5.2 intentional denormalization |
+
+### Lossless-Join Decomposition & Dependency Preservation
+
+1. **Lossless Join:** All foreign-key relationships join on candidate keys (specifically primary keys), guaranteeing that natural joins across parent and child relations produce no spurious tuples.
+2. **Dependency Preservation:** With the exception of the cross-table functional dependency `uploader_id → college_id` (enforced via database constraints and application-level session injection), all functional dependencies are preserved within their respective individual relations.
+
+---
+
+## 7. Conclusion
 
 The CampusLens schema is in **Third Normal Form**. All primary keys are single-column UUIDs, eliminating any possibility of partial dependency. No non-key column is transitively dependent on the PK through another non-key column, with three documented exceptions:
 
