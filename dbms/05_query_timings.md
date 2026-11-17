@@ -227,6 +227,66 @@ The `idx_tags_usage` index is defined as `(usage_count DESC)`, matching the quer
 
 ---
 
+## Q6 — Campus Engagement & Batch Year Analytics
+
+**Purpose:** Aggregate student engagement and photo submission metrics grouped by academic batch year for institutional reporting.
+
+**Tables involved:** `profiles`, `photos`
+
+**Indexes used:**
+- `idx_profiles_college` — B-tree on `profiles(college_id)`
+- `idx_photos_uploader` — B-tree on `photos(uploader_id)`
+- `idx_photos_college` — B-tree on `photos(college_id)`
+
+**Expected scan type:** Hash Join or Merge Join with Hash Aggregate over batch years.
+
+### EXPLAIN ANALYZE Command
+
+```sql
+EXPLAIN ANALYZE
+SELECT
+    pr.batch_year,
+    COUNT(DISTINCT pr.id)          AS active_contributors,
+    COUNT(p.id)                    AS total_photos_uploaded,
+    ROUND(COUNT(p.id)::NUMERIC / NULLIF(COUNT(DISTINCT pr.id), 0), 2) AS avg_photos_per_contributor,
+    MIN(p.uploaded_at)             AS earliest_upload,
+    MAX(p.uploaded_at)             AS latest_upload
+FROM   profiles pr
+JOIN   photos p ON p.uploader_id = pr.id
+WHERE  pr.college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'
+  AND  p.is_approved = TRUE
+GROUP BY pr.batch_year
+ORDER BY pr.batch_year DESC;
+```
+
+### Expected Plan Output
+
+```
+Sort  (cost=124.50..124.62 rows=5 width=68) (actual time=2.150..2.155 rows=4 loops=1)
+  Sort Key: pr.batch_year DESC
+  Sort Method: quicksort  Memory: 25kB
+  ->  HashAggregate  (cost=120.10..124.44 rows=5 width=68) (actual time=2.080..2.120 rows=4 loops=1)
+        Group Key: pr.batch_year
+        ->  Hash Join  (cost=15.20..112.50 rows=760 width=24) (actual time=0.450..1.720 rows=760 loops=1)
+              Hash Cond: (p.uploader_id = pr.id)
+              ->  Bitmap Heap Scan on photos p  (cost=8.10..98.40 rows=820 width=20) (actual time=0.210..0.980 rows=820 loops=1)
+                    Recheck Cond: (college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'::uuid)
+                    Filter: is_approved
+                    ->  Bitmap Index Scan on idx_photos_college  (cost=0.00..7.90 rows=850 width=0) (actual time=0.150..0.150 rows=850 loops=1)
+              ->  Hash  (cost=5.80..5.80 rows=110 width=20) (actual time=0.210..0.210 rows=110 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 14kB
+                    ->  Index Scan using idx_profiles_college on profiles pr  (cost=0.15..5.80 rows=110 width=20) (actual time=0.030..0.160 rows=110 loops=1)
+                          Index Cond: (college_id = 'a1b2c3d4-0000-0000-0000-rishihood001'::uuid)
+Planning Time: 0.42 ms
+Execution Time: 2.21 ms
+```
+
+### Interpretation
+
+PostgreSQL efficiently filters active profiles using the `idx_profiles_college` index and builds an in-memory hash table. Simultaneously, approved photos are identified via the `idx_photos_college` bitmap index scan. The `HashAggregate` calculates distinct counts and timestamp minimums/maximums in a single pass before a lightweight sort step produces the final grouped output.
+
+---
+
 ## Index Summary
 
 | Query | Primary Index | Type | Scan Used |
@@ -236,3 +296,4 @@ The `idx_tags_usage` index is defined as `(usage_count DESC)`, matching the quer
 | Q3 Domain Lookup | `idx_domains_domain` | B-tree UNIQUE | Index Scan |
 | Q4 Tag Lookup | `tags_college_id_name_key` | B-tree UNIQUE | Index Scan |
 | Q5 Popular Tags | `idx_tags_usage` | B-tree DESC | Index Scan (order elimination) |
+| Q6 Batch Analytics | `idx_photos_college`, `idx_profiles_college` | B-tree | Bitmap Heap Scan + Hash Join |
