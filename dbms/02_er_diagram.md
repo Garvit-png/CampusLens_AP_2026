@@ -124,3 +124,44 @@ This is the core many-to-many relationship. One photo can be tagged with many ta
 
 ### photo_tags — photos / tags (N:1 each)
 `photo_tags` is the associative entity resolving the photos↔tags many-to-many. Each row in `photo_tags` holds exactly one `photo_id` and one `tag_id`. Deleting either the photo or the tag cascades to remove all associated `photo_tags` rows.
+
+---
+
+## Cardinality & Participation Constraints Summary
+
+| Entity 1 | Entity 2 | Cardinality | Entity 1 Participation | Entity 2 Participation | FK Placement & Integrity Rule |
+|---|---|---|---|---|---|
+| `auth.users` | `profiles` | 1 : 1 | Partial (pre-onboarding) | Total | `profiles.user_id` (UNIQUE, ON DELETE CASCADE) |
+| `colleges` | `college_email_domains` | 1 : N | Partial | Total | `college_email_domains.college_id` (ON DELETE CASCADE) |
+| `colleges` | `profiles` | 1 : N | Partial | Partial (pre-onboarding) | `profiles.college_id` (ON DELETE RESTRICT) |
+| `colleges` | `events` | 1 : N | Partial | Total | `events.college_id` (ON DELETE CASCADE) |
+| `colleges` | `photos` | 1 : N | Partial | Total | `photos.college_id` (ON DELETE CASCADE) |
+| `colleges` | `tags` | 1 : N | Partial | Partial (nullable for global) | `tags.college_id` (ON DELETE CASCADE) |
+| `profiles` | `photos` | 1 : N | Partial | Total | `photos.uploader_id` (ON DELETE CASCADE) |
+| `events` | `photos` | 1 : N | Partial | Partial (optional fest link) | `photos.event_id` (ON DELETE SET NULL) |
+| `photos` | `tags` | M : N | Partial | Partial | Resolved via `photo_tags(photo_id, tag_id)` |
+
+---
+
+## Relational Schema Mapping (Physical Schema Representation)
+
+Below is the formal relational schema derived from the ER model:
+
+- **`colleges`** (<u>id</u>, name, short_name, city, is_active, created_at)
+- **`college_email_domains`** (<u>id</u>, *college_id*, domain, created_at)
+  - FK: `college_id` $\to$ `colleges(id)`
+- **`profiles`** (<u>id</u>, *user_id*, *college_id*, full_name, batch_year, is_onboarding_complete, created_at, updated_at)
+  - FK: `user_id` $\to$ `auth.users(id)`
+  - FK: `college_id` $\to$ `colleges(id)`
+- **`events`** (<u>id</u>, *college_id*, name, year, event_date, created_at)
+  - FK: `college_id` $\to$ `colleges(id)`
+- **`photos`** (<u>id</u>, *college_id*, *uploader_id*, *event_id*, caption, hashtags, cloudinary_public_id, image_url, thumbnail_url, year, is_approved, uploaded_at, created_at, updated_at)
+  - FK: `college_id` $\to$ `colleges(id)`
+  - FK: `uploader_id` $\to$ `profiles(id)`
+  - FK: `event_id` $\to$ `events(id)`
+- **`tags`** (<u>id</u>, *college_id*, name, usage_count, created_at)
+  - FK: `college_id` $\to$ `colleges(id)`
+- **`photo_tags`** (<u>id</u>, *photo_id*, *tag_id*, created_at)
+  - FK: `photo_id` $\to$ `photos(id)`
+  - FK: `tag_id` $\to$ `tags(id)`
+
