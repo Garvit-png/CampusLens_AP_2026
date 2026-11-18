@@ -40,7 +40,7 @@ The database schema models campus multi-tenancy and media association:
 2. **`college_email_domains`**: Whitelisted domains ensuring email verification and automatic institutional affiliation.
 3. **`profiles`**: User profiles mapped 1:1 with authenticated users (`auth.users`), linked to their respective college.
 4. **`events`**: Campus events and fests categorizing photo submissions.
-5. **`photos`**: Uploaded media records with Cloudinary public IDs, hashtags, moderation flags, and timestamps.
+5. **`photos`**: Uploaded media records with Cloudinary public IDs, hashtags, moderation flags, and timestampsss..
 6. **`tags`**: Reusable tags scoped per college with usage frequency tracking.
 7. **`photo_tags`**: Many-to-many junction bridge associating photos with tags.
 
